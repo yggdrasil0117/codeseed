@@ -1,0 +1,87 @@
+---
+title: '前端入门：HTML、CSS 和 JavaScript 的区别'
+date: '2026-10-14'
+tags: ['前端开发', '编程入门', 'Web 基础']
+draft: false
+summary: '理解网页结构、样式和交互分别由什么负责，写出一个最小可运行的前端页面。'
+authors: ['default']
+layout: PostLayout
+---
+
+# HTML、CSS 和 JavaScript 分别做什么？
+
+浏览器中的网页通常由 HTML、CSS 和 JavaScript 三类技术协作完成。可以把它们类比成一间房子：
+
+- **HTML** 是房子的结构，决定页面有哪些内容。
+- **CSS** 是装修，决定颜色、大小、间距和布局。
+- **JavaScript** 是电器和控制系统，让页面能够响应用户操作。
+
+三者职责不同，但通常会放在同一个页面中一起工作。
+
+## HTML：描述页面结构
+
+HTML 使用标签描述标题、段落、链接、图片和表单等内容：
+
+```html
+<main>
+  <h1>我的第一个页面</h1>
+  <p>这是页面中的一段文字。</p>
+  <button id="hello-button">点击我</button>
+</main>
+```
+
+HTML 关注的是“页面有什么”，而不是它最终长什么样。使用语义化标签，例如 main、article 和 nav，有助于浏览器、搜索引擎和辅助技术理解页面结构。
+
+## CSS：控制页面样式
+
+CSS 可以为 HTML 元素设置颜色、字体、间距和布局：
+
+```css
+body {
+  color: #0f172a;
+  background: #f8fafc;
+  font-family: sans-serif;
+}
+
+button {
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: #2563eb;
+  color: white;
+}
+```
+
+当页面需要适配手机和桌面屏幕时，可以使用媒体查询或 CSS Flexbox、Grid 等布局工具。CSS 负责表现，不应该把大量业务逻辑写进样式表。
+
+## JavaScript：增加交互
+
+JavaScript 可以读取页面元素、响应事件并更新内容：
+
+```js
+const button = document.querySelector('#hello-button')
+
+button.addEventListener('click', () => {
+  button.textContent = '你好，CodeSeed！'
+})
+```
+
+用户点击按钮后，程序找到按钮并修改它的文字。这就是最基本的 DOM 交互。
+
+## 三者如何配合？
+
+一个网页的加载过程可以简单理解为：
+
+1. 浏览器读取 HTML，创建页面结构。
+2. 浏览器读取 CSS，计算元素的样式和位置。
+3. 浏览器执行 JavaScript，绑定事件并处理动态行为。
+
+实际项目中，前端框架会帮助我们组织组件和状态，但最终仍然会生成浏览器能够理解的 HTML、CSS 和 JavaScript。
+
+## 初学者的练习路线
+
+- 先只用 HTML 做一个个人介绍页。
+- 再用 CSS 调整颜色、字体和卡片布局。
+- 最后用 JavaScript 添加按钮、表单校验或主题切换。
+- 用浏览器开发者工具检查元素、样式和控制台报错。
+
+先掌握这三种技术的职责边界，再学习 React、Vue 或 Next.js，会更容易理解框架到底替你解决了什么问题。

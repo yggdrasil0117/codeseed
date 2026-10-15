@@ -2,18 +2,17 @@
 
 import { usePathname } from 'next/navigation'
 import { slug } from 'github-slugger'
-import { formatDate } from 'pliny/utils/formatDate'
 import { CoreContent } from 'pliny/utils/contentlayer'
 import type { Blog } from 'contentlayer/generated'
 import Link from '@/components/Link'
-import Tag from '@/components/Tag'
-import siteMetadata from '@/data/siteMetadata'
+import ArticleCard from '@/components/ArticleCard'
 import tagData from 'app/tag-data.json'
 
 interface PaginationProps {
   totalPages: number
   currentPage: number
 }
+
 interface ListLayoutProps {
   posts: CoreContent<Blog>[]
   title: string
@@ -23,46 +22,45 @@ interface ListLayoutProps {
 
 function Pagination({ totalPages, currentPage }: PaginationProps) {
   const pathname = usePathname()
-  const segments = pathname.split('/')
-  const lastSegment = segments[segments.length - 1]
   const basePath = pathname
-    .replace(/^\//, '') // Remove leading slash
-    .replace(/\/page\/\d+\/?$/, '') // Remove any trailing /page
-    .replace(/\/$/, '') // Remove trailing slash
-  const prevPage = currentPage - 1 > 0
-  const nextPage = currentPage + 1 <= totalPages
+    .replace(/^\//, '')
+    .replace(/\/page\/\d+\/?$/, '')
+    .replace(/\/$/, '')
+  const prevPage = currentPage > 1
+  const nextPage = currentPage < totalPages
+  const pageHref = (page: number) => (page === 1 ? `/${basePath}/` : `/${basePath}/page/${page}/`)
 
   return (
-    <div className="space-y-2 pt-6 pb-8 md:space-y-5">
-      <nav className="flex justify-between">
-        {!prevPage && (
-          <button className="cursor-auto disabled:opacity-50" disabled={!prevPage}>
-            Previous
-          </button>
-        )}
-        {prevPage && (
-          <Link
-            href={currentPage - 1 === 1 ? `/${basePath}/` : `/${basePath}/page/${currentPage - 1}`}
-            rel="prev"
-          >
-            Previous
-          </Link>
-        )}
-        <span>
-          {currentPage} of {totalPages}
-        </span>
-        {!nextPage && (
-          <button className="cursor-auto disabled:opacity-50" disabled={!nextPage}>
-            Next
-          </button>
-        )}
-        {nextPage && (
-          <Link href={`/${basePath}/page/${currentPage + 1}`} rel="next">
-            Next
-          </Link>
-        )}
-      </nav>
-    </div>
+    <nav
+      className="border-brand-border bg-brand-card mt-6 flex items-center justify-between rounded-xl border px-4 py-3 text-sm dark:border-gray-800 dark:bg-gray-900"
+      aria-label="文章分页"
+    >
+      {prevPage ? (
+        <Link
+          href={pageHref(currentPage - 1)}
+          rel="prev"
+          className="text-primary-600 hover:text-primary-700 dark:text-primary-400 font-semibold"
+        >
+          ← 上一页
+        </Link>
+      ) : (
+        <span className="text-gray-400">← 上一页</span>
+      )}
+      <span className="text-brand-muted dark:text-gray-400">
+        第 {currentPage} 页，共 {totalPages} 页
+      </span>
+      {nextPage ? (
+        <Link
+          href={pageHref(currentPage + 1)}
+          rel="next"
+          className="text-primary-600 hover:text-primary-700 dark:text-primary-400 font-semibold"
+        >
+          下一页 →
+        </Link>
+      ) : (
+        <span className="text-gray-400">下一页 →</span>
+      )}
+    </nav>
   )
 }
 
@@ -74,96 +72,93 @@ export default function ListLayoutWithTags({
 }: ListLayoutProps) {
   const pathname = usePathname()
   const tagCounts = tagData as Record<string, number>
-  const tagKeys = Object.keys(tagCounts)
-  const sortedTags = tagKeys.sort((a, b) => tagCounts[b] - tagCounts[a])
-
+  const sortedTags = Object.keys(tagCounts).sort((a, b) => tagCounts[b] - tagCounts[a])
+  const activeTag = pathname.startsWith('/tags/')
+    ? decodeURIComponent(pathname.split('/tags/')[1].split('/')[0])
+    : ''
   const displayPosts = initialDisplayPosts.length > 0 ? initialDisplayPosts : posts
 
   return (
-    <>
+    <div className="space-y-5 py-8 lg:py-10">
       <div>
-        <div className="pt-6 pb-6">
-          <h1 className="text-3xl leading-9 font-extrabold tracking-tight text-gray-900 sm:hidden sm:text-4xl sm:leading-10 md:text-6xl md:leading-14 dark:text-gray-100">
-            {title}
-          </h1>
-        </div>
-        <div className="flex sm:space-x-24">
-          <div className="hidden h-full max-h-screen max-w-[280px] min-w-[280px] flex-wrap overflow-auto rounded-sm bg-gray-50 pt-5 shadow-md sm:flex dark:bg-gray-900/70 dark:shadow-gray-800/40">
-            <div className="px-6 py-4">
-              {pathname.startsWith('/blog') ? (
-                <h3 className="text-primary-500 font-bold uppercase">All Posts</h3>
-              ) : (
-                <Link
-                  href={`/blog`}
-                  className="hover:text-primary-500 dark:hover:text-primary-500 font-bold text-gray-700 uppercase dark:text-gray-300"
-                >
-                  All Posts
-                </Link>
-              )}
-              <ul>
-                {sortedTags.map((t) => {
-                  return (
-                    <li key={t} className="my-3">
-                      {decodeURI(pathname.split('/tags/')[1]) === slug(t) ? (
-                        <h3 className="text-primary-500 inline px-3 py-2 text-sm font-bold uppercase">
-                          {`${t} (${tagCounts[t]})`}
-                        </h3>
-                      ) : (
-                        <Link
-                          href={`/tags/${slug(t)}`}
-                          className="hover:text-primary-500 dark:hover:text-primary-500 px-3 py-2 text-sm font-medium text-gray-500 uppercase dark:text-gray-300"
-                          aria-label={`View posts tagged ${t}`}
-                        >
-                          {`${t} (${tagCounts[t]})`}
-                        </Link>
-                      )}
-                    </li>
-                  )
-                })}
-              </ul>
-            </div>
-          </div>
-          <div>
-            <ul>
-              {displayPosts.map((post) => {
-                const { path, date, title, summary, tags } = post
-                return (
-                  <li key={path} className="py-5">
-                    <article className="flex flex-col space-y-2 xl:space-y-0">
-                      <dl>
-                        <dt className="sr-only">Published on</dt>
-                        <dd className="text-base leading-6 font-medium text-gray-500 dark:text-gray-400">
-                          <time dateTime={date} suppressHydrationWarning>
-                            {formatDate(date, siteMetadata.locale)}
-                          </time>
-                        </dd>
-                      </dl>
-                      <div className="space-y-3">
-                        <div>
-                          <h2 className="text-2xl leading-8 font-bold tracking-tight">
-                            <Link href={`/${path}`} className="text-gray-900 dark:text-gray-100">
-                              {title}
-                            </Link>
-                          </h2>
-                          <div className="flex flex-wrap">
-                            {tags?.map((tag) => <Tag key={tag} text={tag} />)}
-                          </div>
-                        </div>
-                        <div className="prose max-w-none text-gray-500 dark:text-gray-400">
-                          {summary}
-                        </div>
-                      </div>
-                    </article>
-                  </li>
-                )
-              })}
-            </ul>
-            {pagination && pagination.totalPages > 1 && (
-              <Pagination currentPage={pagination.currentPage} totalPages={pagination.totalPages} />
-            )}
-          </div>
-        </div>
+        <p className="text-primary-600 dark:text-primary-400 text-sm font-semibold">
+          CodeSeed · 码芽
+        </p>
+        <h1 className="text-brand-foreground mt-2 text-3xl leading-tight font-bold tracking-tight sm:text-4xl dark:text-white">
+          {title}
+        </h1>
+        <p className="text-brand-muted mt-3 text-[15px] dark:text-gray-400">
+          按主题浏览适合编程初学者的技术文章。
+        </p>
       </div>
-    </>
+
+      <div className="flex gap-2 overflow-x-auto pb-1 lg:hidden">
+        <Link
+          href="/blog/"
+          className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-medium ${!activeTag ? 'bg-primary-600 text-white' : 'text-brand-muted bg-white dark:bg-gray-900 dark:text-gray-300'}`}
+        >
+          全部文章
+        </Link>
+        {sortedTags.map((tag) => (
+          <Link
+            key={tag}
+            href={`/tags/${slug(tag)}/`}
+            className={`shrink-0 rounded-full px-3 py-1.5 text-sm font-medium ${activeTag === slug(tag) ? 'bg-primary-600 text-white' : 'text-brand-muted bg-white dark:bg-gray-900 dark:text-gray-300'}`}
+          >
+            {tag}
+          </Link>
+        ))}
+      </div>
+
+      <div className="grid min-w-0 gap-6 lg:grid-cols-[240px_minmax(0,1fr)] lg:items-start">
+        <aside className="border-brand-border bg-brand-card hidden rounded-xl border p-5 lg:block dark:border-gray-800 dark:bg-gray-900">
+          <h2 className="text-brand-foreground text-[15px] font-bold dark:text-white">文章分类</h2>
+          <nav className="mt-4 space-y-1" aria-label="文章分类">
+            <Link
+              href="/blog/"
+              className={`block rounded-lg px-3 py-2 text-[15px] font-medium transition ${!activeTag ? 'bg-primary-50 text-primary-700 dark:bg-primary-950/50 dark:text-primary-300' : 'text-brand-muted hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800'}`}
+            >
+              全部文章 <span className="text-xs opacity-70">({posts.length})</span>
+            </Link>
+            {sortedTags.map((tag) => (
+              <Link
+                key={tag}
+                href={`/tags/${slug(tag)}/`}
+                className={`flex items-center justify-between rounded-lg px-3 py-2 text-[15px] transition ${activeTag === slug(tag) ? 'bg-primary-50 text-primary-700 dark:bg-primary-950/50 dark:text-primary-300 font-semibold' : 'text-brand-muted hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-gray-800'}`}
+                aria-label={`查看「${tag}」分类下的文章`}
+              >
+                <span>{tag}</span>
+                <span className="text-xs opacity-70">{tagCounts[tag]}</span>
+              </Link>
+            ))}
+          </nav>
+        </aside>
+
+        <section aria-label={title}>
+          <div className="text-brand-muted mb-4 flex items-center justify-between text-[15px] dark:text-gray-400">
+            <span>{displayPosts.length} 篇文章</span>
+            <Link
+              href="/tags/"
+              className="text-primary-600 hover:text-primary-700 dark:text-primary-400 font-semibold"
+            >
+              浏览全部分类 →
+            </Link>
+          </div>
+          <div className="space-y-4">
+            {!displayPosts.length && (
+              <p className="border-brand-border bg-brand-card text-brand-muted rounded-xl border p-6 dark:border-gray-800 dark:bg-gray-900">
+                这个分类暂时还没有文章。
+              </p>
+            )}
+            {displayPosts.map((post) => (
+              <ArticleCard key={post.path} post={post} />
+            ))}
+          </div>
+          {pagination && pagination.totalPages > 1 && (
+            <Pagination currentPage={pagination.currentPage} totalPages={pagination.totalPages} />
+          )}
+        </section>
+      </div>
+    </div>
   )
 }

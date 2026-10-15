@@ -1,5 +1,5 @@
 @import 'tailwindcss';
-@plugin "@tailwindcss/forms";
+@plugin '@tailwindcss/forms';
 @plugin '@tailwindcss/typography';
 @source '../node_modules/pliny';
 @custom-variant dark (&:where(.dark, .dark *));
@@ -7,22 +7,29 @@
 /* Core theme configuration */
 @theme {
   /* Font families */
-  --font-sans: var(--font-space-grotesk), ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
+  --font-sans:
+    ui-sans-serif, -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB',
+    'Microsoft YaHei', 'Noto Sans CJK SC', 'Noto Sans SC', sans-serif, 'Apple Color Emoji',
     'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
 
   /* Colors */
-  /* Copied from https://tailwindcss.com/docs/theme#default-theme-variable-reference */
-  --color-primary-50: oklch(0.971 0.014 343.198);
-  --color-primary-100: oklch(0.948 0.028 342.258);
-  --color-primary-200: oklch(0.899 0.061 343.231);
-  --color-primary-300: oklch(0.823 0.12 346.018);
-  --color-primary-400: oklch(0.718 0.202 349.761);
-  --color-primary-500: oklch(0.656 0.241 354.308);
-  --color-primary-600: oklch(0.592 0.249 0.584);
-  --color-primary-700: oklch(0.525 0.223 3.958);
-  --color-primary-800: oklch(0.459 0.187 3.815);
-  --color-primary-900: oklch(0.408 0.153 2.432);
-  --color-primary-950: oklch(0.284 0.109 3.907);
+  --color-brand-background: #f8fafc;
+  --color-brand-card: #ffffff;
+  --color-brand-foreground: #0f172a;
+  --color-brand-muted: #64748b;
+  --color-brand-border: #e2e8f0;
+  --color-primary-50: #eff6ff;
+  --color-primary-100: #dbeafe;
+  --color-primary-200: #bfdbfe;
+  --color-primary-300: #93c5fd;
+  --color-primary-400: #60a5fa;
+  --color-primary-500: #3b82f6;
+  --color-primary-600: #2563eb;
+  --color-primary-700: #1d4ed8;
+  --color-primary-800: #1e40af;
+  --color-primary-900: #1e3a8a;
+  --color-primary-950: #172554;
+  --radius-card: 0.75rem;
 
   --color-gray-50: oklch(0.985 0.002 247.839);
   --color-gray-100: oklch(0.967 0.003 264.542);
@@ -76,6 +83,10 @@
     border-radius: var(--radius-sm);
     outline-color: var(--color-primary-500);
   }
+
+  body {
+    line-height: 1.75;
+  }
 }
 
 @layer utilities {
@@ -114,6 +125,43 @@
     & :where(h1, h2, h3, h4, h5, h6) {
       color: var(--color-gray-100);
     }
+  }
+
+  .article-content {
+    & p {
+      line-height: 1.95;
+    }
+    & pre {
+      max-width: 100%;
+      overflow-x: auto;
+      border-radius: 0.75rem;
+    }
+    & blockquote {
+      border-left-color: var(--color-primary-300);
+      background: var(--color-primary-50);
+      padding: 0.75rem 1rem;
+      border-radius: 0 0.5rem 0.5rem 0;
+    }
+    & table {
+      display: block;
+      max-width: 100%;
+      overflow-x: auto;
+    }
+  }
+
+  .article-toc a {
+    color: var(--color-brand-muted);
+    font-size: 0.875rem;
+    line-height: 1.5;
+    &:hover {
+      color: var(--color-primary-600);
+    }
+  }
+}
+
+@media (prefers-color-scheme: dark) {
+  .article-content blockquote {
+    background: color-mix(in srgb, var(--color-primary-950) 45%, transparent);
   }
 }
 

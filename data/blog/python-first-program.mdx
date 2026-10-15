@@ -1,0 +1,88 @@
+---
+title: 'Python 入门：编写第一个 Python 程序'
+date: '2026-10-12'
+tags: ['Python', '编程入门']
+draft: false
+summary: '从安装环境、输出文字和变量开始，完成一个可以在本地运行的第一个 Python 程序。'
+authors: ['default']
+layout: PostLayout
+---
+
+# 编写第一个 Python 程序
+
+Python 语法简洁，拥有丰富的标准库和第三方库，适合用来学习编程基础。开始前需要安装 Python，并在终端确认版本：
+
+```bash
+python --version
+```
+
+在部分系统中，命令可能是 python3 --version。只要终端能够输出 Python 版本，就可以继续。
+
+## 输出第一句话
+
+新建文件 hello.py，写入：
+
+```python
+print('你好，CodeSeed！')
+```
+
+在文件所在目录运行：
+
+```bash
+python hello.py
+```
+
+print 会把内容输出到终端。Python 使用缩进表示代码块，所以缩进应保持一致，通常使用四个空格。
+
+## 使用变量
+
+变量可以保存数据，后续再使用：
+
+```python
+name = '小林'
+age = 18
+
+print(name + '今年' + str(age) + '岁。')
+```
+
+这里 name 是字符串，age 是整数。str(age) 把整数转换成字符串，因为字符串不能直接和整数拼接。
+
+更常见的写法是使用 f-string：
+
+```python
+name = '小林'
+age = 18
+print(f'{name}今年{age}岁。')
+```
+
+## 使用条件判断
+
+```python
+score = 85
+
+if score >= 60:
+    print('通过')
+else:
+    print('需要继续练习')
+```
+
+注意 if 和 else 后面有冒号，下面的代码需要缩进。条件表达式的结果是 True 或 False。
+
+## 写一个小练习
+
+下面的程序读取用户输入，判断输入的数字是奇数还是偶数：
+
+```python
+number = int(input('请输入一个整数：'))
+
+if number % 2 == 0:
+    print('这是偶数。')
+else:
+    print('这是奇数。')
+```
+
+input 读取到的内容默认是字符串，int 将它转换成整数；% 表示取余数。一个数除以 2 的余数为 0 时，它就是偶数。
+
+## 下一步学什么？
+
+完成第一个程序后，可以继续练习列表、字典、循环和函数，再尝试读取文件或调用 API。遇到报错时，先看错误类型和出错行号，再缩小问题范围。能独立定位错误，是比背诵更多语法更重要的能力。
