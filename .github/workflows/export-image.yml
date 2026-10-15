@@ -1,0 +1,100 @@
+name: Export GHCR Image for ECS
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: GHCR image tag to export, for example latest or sha-<commit>
+        required: true
+        default: latest
+        type: string
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    env:
+      IMAGE: ghcr.io/${{ github.repository }}
+      IMAGE_TAG: ${{ inputs.image_tag }}
+
+    steps:
+      - name: Validate image tag
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ ! "$IMAGE_TAG" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$ ]]; then
+            echo "::error::image_tag must contain only letters, numbers, dots, underscores, or hyphens, and must be at most 128 characters."
+            exit 1
+          fi
+
+      - name: Check runner disk space
+        shell: bash
+        run: |
+          set -euo pipefail
+          free_bytes="$(df -PB1 "$RUNNER_TEMP" | awk 'NR == 2 { print $4 }')"
+          required_bytes=$((4 * 1024 * 1024 * 1024))
+          echo "Runner free space: $((free_bytes / 1024 / 1024)) MiB"
+          if (( free_bytes < required_bytes )); then
+            echo "::error::Less than 4 GiB is available in the runner temporary directory; refusing a large image export."
+            exit 1
+          fi
+          docker system df
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Pull and verify linux/amd64 image
+        shell: bash
+        run: |
+          set -euo pipefail
+          image_ref="${IMAGE}:${IMAGE_TAG}"
+          docker pull --platform linux/amd64 "$image_ref"
+          docker image inspect "$image_ref" --format 'OS={{.Os}} ARCH={{.Architecture}} SIZE={{.Size}} bytes'
+          os="$(docker image inspect "$image_ref" --format '{{.Os}}')"
+          architecture="$(docker image inspect "$image_ref" --format '{{.Architecture}}')"
+          if [[ "$os" != "linux" || "$architecture" != "amd64" ]]; then
+            echo "::error::Expected linux/amd64 image, got ${os}/${architecture}."
+            exit 1
+          fi
+
+      - name: Save and gzip image
+        id: export
+        shell: bash
+        run: |
+          set -euo pipefail
+          safe_tag="${IMAGE_TAG//\//-}"
+          safe_tag="${safe_tag//:/-}"
+          image_ref="${IMAGE}:${IMAGE_TAG}"
+          image_file="$RUNNER_TEMP/codeseed-${safe_tag}-${GITHUB_SHA}.tar.gz"
+          checksum_file="${image_file}.sha256"
+
+          docker save "$image_ref" | gzip -1 > "$image_file"
+          (
+            cd "$(dirname "$image_file")"
+            sha256sum "$(basename "$image_file")"
+          ) > "$checksum_file"
+
+          size_bytes="$(stat -c '%s' "$image_file")"
+          size_mib="$((size_bytes / 1024 / 1024))"
+          echo "Compressed image size: ${size_mib} MiB (${size_bytes} bytes)"
+          echo "path=$image_file" >> "$GITHUB_OUTPUT"
+          echo "checksum=$checksum_file" >> "$GITHUB_OUTPUT"
+          echo "size_mib=$size_mib" >> "$GITHUB_OUTPUT"
+
+      - name: Upload image Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: codeseed-image-${{ inputs.image_tag }}-${{ github.sha }}
+          path: |
+            ${{ steps.export.outputs.path }}
+            ${{ steps.export.outputs.checksum }}
+          if-no-files-found: error
+          retention-days: 3
+          compression-level: 0

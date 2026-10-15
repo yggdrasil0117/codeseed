@@ -26,11 +26,7 @@ services:
       start_period: 30s
 
   web:
-    build:
-      context: .
-      dockerfile: Dockerfile
-      args:
-        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:?NEXT_PUBLIC_SITE_URL is required}
+    image: ${WEB_IMAGE:?WEB_IMAGE is required}
     restart: unless-stopped
     depends_on:
       db:
@@ -47,7 +43,7 @@ services:
       COMMENTS_TRUST_PROXY: ${COMMENTS_TRUST_PROXY:-false}
       NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:?NEXT_PUBLIC_SITE_URL is required}
     ports:
-      - '${WEB_PORT:-18080}:3000'
+      - '${WEB_PORT:-18081}:3000'
     networks:
       - codeseed-internal
 

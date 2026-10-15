@@ -5,7 +5,7 @@
 - `web`：Next.js 生产服务，容器内监听 `0.0.0.0:3000`。
 - `db`：MySQL 8.0，只有 Compose 内部网络可访问，不映射宿主机端口。
 
-Compose 项目名固定为 `codeseed`，数据库使用项目专属命名卷。本文档只提供部署命令，不会连接或操作其他 Compose 项目。
+Compose 项目名固定为 `codeseed`，数据库使用项目专属命名卷。ECS 使用从 GitHub Actions Artifact 导入的 GHCR Web 镜像，不在服务器编译 Next.js，也不会因 Compose 启动再次拉取 GHCR。本文档只提供部署命令，不会连接或操作其他 Compose 项目。
 
 ## 1. 本地环境准备
 
@@ -49,12 +49,12 @@ ss -ltnp
 
 重点检查：
 
-- `WEB_PORT` 默认是 `18080`，如果已占用，修改 `.env.production` 中的 `WEB_PORT`。
+- `WEB_PORT` 默认是 `18081`，如果已占用，修改 `.env.production` 中的 `WEB_PORT`。
 - 不需要检查或开放宿主机 `3306`，本 Compose 不发布 MySQL 端口。
 - 不要复用其他项目的 Compose 项目名、服务名、数据卷或数据库。
 - 本项目不修改已有 Nginx 配置，不自动开放 `80/443`。
 
-如果发现已有服务占用 `18080`，或需要修改防火墙/反向代理，请先人工确认后再决定，不要覆盖现有服务。
+如果发现已有服务占用 `18081`，或需要修改防火墙/反向代理，请先人工确认后再决定，不要覆盖现有服务。
 
 ## 4. 安全组与防火墙检查
 
@@ -65,7 +65,7 @@ sudo ufw status verbose
 sudo ss -ltnp
 ```
 
-首次验收可只放行 `${WEB_PORT}`（默认 `18080`）。不要开放 `3306`，不要自动开放 `80/443`。如果未来使用 Nginx 或 HTTPS，应先单独评估现有服务器配置。
+首次验收可只放行 `${WEB_PORT}`（默认 `18081`）。不要开放 `3306`，不要自动开放 `80/443`。如果未来使用 Nginx 或 HTTPS，应先单独评估现有服务器配置。
 
 ## 5. 上传项目或 Git 拉取
 
@@ -89,7 +89,8 @@ chmod 600 .env.production
 
 编辑 `.env.production`，至少替换：
 
-- `NEXT_PUBLIC_SITE_URL`：真实域名，或当前阶段的 `http://服务器公网IP:18080`。
+- `WEB_IMAGE`：导入 ECS 的 GHCR 镜像标签，默认是 `ghcr.io/yggdrasil0117/codeseed:latest`；也可以使用已导入的 `:sha-<commit>` 标签。
+- `NEXT_PUBLIC_SITE_URL`：真实域名，或当前阶段的 `http://服务器公网IP:18081`。
 - `MYSQL_PASSWORD`：随机生成的应用数据库密码。
 - `MYSQL_ROOT_PASSWORD`：与应用密码不同的随机根密码。
 - `WEB_PORT`：确认未被服务器其他进程占用。
@@ -101,26 +102,94 @@ COMMENTS_PUBLIC=false
 COMMENTS_TRUST_PROXY=false
 ```
 
-数据库密码只通过运行时环境传入。`NEXT_PUBLIC_SITE_URL` 是公开配置，会在构建阶段进入 `NEXT_PUBLIC_*` 产物；修改它后必须重新构建 Web 镜像。`.env.production` 被 `.dockerignore` 排除，不会进入构建上下文。
+数据库密码只通过运行时环境传入。`NEXT_PUBLIC_SITE_URL` 是公开配置，会在 GitHub Actions 构建阶段进入 `NEXT_PUBLIC_*` 产物；修改它后必须重新导出并上传新的镜像 Artifact。`.env.production` 不应上传到 Artifact，也不应提交到 Git。
 
-## 7. 构建与启动 Compose
+## 7. 导出、下载、上传并导入 GHCR 镜像
 
-先检查 Compose 最终配置，只读，不启动服务：
+### 7.1 手动运行导出 Workflow
+
+在 GitHub 仓库的 Actions 页面手动运行 `Export GHCR Image for ECS`，输入需要部署的标签：
+
+- 推荐使用不可变的 `sha-<commit>` 标签。
+- 面试展示快速部署可以使用 `latest`，但需要确认该标签对应预期提交。
+- Workflow 会拉取 `linux/amd64` 镜像，执行 gzip 压缩，生成 `.sha256` 校验文件，并上传 3 天保留的 Artifact。
+- Artifact 不包含源代码、环境文件、数据库密码、SSH 私钥或其他凭据。
+
+Workflow 会先检查 Runner 临时目录剩余空间，低于 4 GiB 时停止；同时输出压缩镜像大小。GitHub Actions Artifact 是否能存储该文件还受仓库/组织套餐的总 Artifact 配额约束，大镜像应在上传日志中确认大小和配额，不要将 Artifact 作为长期镜像仓库。
+
+### 7.2 Windows 下载 Artifact
+
+优先在 GitHub Actions 运行详情页下载 Artifact，解压后应得到：
+
+```text
+codeseed-<tag>-<commit>.tar.gz
+codeseed-<tag>-<commit>.tar.gz.sha256
+```
+
+如果 Windows 已安装并登录 GitHub CLI，也可以下载：
+
+```powershell
+$artifactDir = 'D:\codeseed-artifacts'
+New-Item -ItemType Directory -Force -Path $artifactDir | Out-Null
+gh run download <RUN_ID> --repo yggdrasil0117/codeseed --name codeseed-image-<TAG>-<COMMIT_SHA> --dir $artifactDir
+```
+
+在 Windows 上核对下载文件：
+
+```powershell
+Get-ChildItem $artifactDir
+Get-FileHash (Join-Path $artifactDir 'codeseed-<tag>-<commit>.tar.gz') -Algorithm SHA256
+Get-Content (Join-Path $artifactDir 'codeseed-<tag>-<commit>.tar.gz.sha256')
+```
+
+比较 SHA256 值后再上传。Artifact 下载目录和 SSH 配置不应包含数据库密码或私钥文件。
+
+### 7.3 Windows 使用现有 SSH 配置上传 ECS
+
+推荐使用现有 SSH config 中的 Host 别名，不在命令中复制私钥：
+
+```powershell
+scp -F "$env:USERPROFILE\.ssh\config" `
+  (Join-Path $artifactDir 'codeseed-<tag>-<commit>.tar.gz') `
+  <SSH_HOST_ALIAS>:/opt/codeseed-transfer/
+
+scp -F "$env:USERPROFILE\.ssh\config" `
+  (Join-Path $artifactDir 'codeseed-<tag>-<commit>.tar.gz.sha256') `
+  <SSH_HOST_ALIAS>:/opt/codeseed-transfer/
+```
+
+如果 SSH config 没有别名，可使用现有私钥路径通过 `-i` 指定，但不要把私钥复制到项目、GitHub 或 Artifact。远程目标目录需由部署人员预先确认，不要覆盖其他项目目录。
+
+### 7.4 ECS 导入镜像并启动 Compose
+
+在 ECS 上先执行只读资源和现有服务检查，获得人工批准后再执行导入：
+
+```bash
+docker version
+docker compose version
+docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Ports}}\t{{.Status}}'
+ss -ltnp
+free -h
+df -h
+```
+
+导入并核对镜像：
+
+```bash
+cd /opt/codeseed-transfer
+sha256sum -c codeseed-<tag>-<commit>.tar.gz.sha256
+docker load --input codeseed-<tag>-<commit>.tar.gz
+docker image inspect ghcr.io/yggdrasil0117/codeseed:<tag> --format 'OS={{.Os}} ARCH={{.Architecture}} SIZE={{.Size}}'
+```
+
+然后在 CodeSeed Compose 目录配置 `.env.production`，确认 `WEB_IMAGE=ghcr.io/yggdrasil0117/codeseed:<tag>`、`WEB_PORT=18081`、`COMMENTS_PUBLIC=false`，再只读检查并启动：
 
 ```bash
 docker compose --env-file .env.production -p codeseed config
+docker compose --env-file .env.production -p codeseed up -d --pull never
 ```
 
-确认服务只有 `web` 和 `db`、没有 `ports` 下的 MySQL 映射后，再构建启动：
-
-```bash
-docker compose --env-file .env.production -p codeseed build web
-docker compose --env-file .env.production -p codeseed up -d
-```
-
-`db` 首次初始化时，官方 MySQL 镜像会在专属数据库 `MYSQL_DATABASE` 中执行只读挂载的 `db/init.sql`。该 SQL 使用 `CREATE TABLE IF NOT EXISTS`，不执行 `DROP DATABASE` 或 `DROP TABLE`。
-
-初始化完成后，Compose 会等待 `db` 健康检查通过，再启动 `web`。后续重启不会重新执行初始化脚本，也不会覆盖现有数据卷。
+`--pull never` 确保 Compose 使用已经 `docker load` 的本地镜像，不再次访问速度缓慢的 GHCR。`db` 首次初始化时，官方 MySQL 镜像会在专属数据库 `MYSQL_DATABASE` 中执行只读挂载的 `db/init.sql`；该 SQL 使用 `CREATE TABLE IF NOT EXISTS`，不执行 `DROP DATABASE` 或 `DROP TABLE`。后续重启不会重新删除或覆盖数据卷。
 
 ## 8. 容器状态与日志检查
 
@@ -144,11 +213,11 @@ docker compose --env-file .env.production -p codeseed logs --tail=100 web
 将 `WEB_PORT` 替换为实际值：
 
 ```bash
-curl -I "http://127.0.0.1:${WEB_PORT:-18080}/"
-curl -I "http://127.0.0.1:${WEB_PORT:-18080}/blog/"
-curl -I "http://127.0.0.1:${WEB_PORT:-18080}/blog/programming-basics-what-is-programming/"
-curl -I "http://127.0.0.1:${WEB_PORT:-18080}/search.json"
-curl -i "http://127.0.0.1:${WEB_PORT:-18080}/api/articles/programming-basics-what-is-programming/comments?page=1&limit=20"
+curl -I "http://127.0.0.1:${WEB_PORT:-18081}/"
+curl -I "http://127.0.0.1:${WEB_PORT:-18081}/blog/"
+curl -I "http://127.0.0.1:${WEB_PORT:-18081}/blog/programming-basics-what-is-programming/"
+curl -I "http://127.0.0.1:${WEB_PORT:-18081}/search.json"
+curl -i "http://127.0.0.1:${WEB_PORT:-18081}/api/articles/programming-basics-what-is-programming/comments?page=1&limit=20"
 ```
 
 首次部署默认 `COMMENTS_PUBLIC=false`，POST 应返回 `503 comments_disabled`。不要为了验证而在公网开启匿名评论。
@@ -164,34 +233,32 @@ docker volume ls --filter name=codeseed
 docker compose --env-file .env.production -p codeseed ps -a
 ```
 
-如果在受控测试中已经有评论数据，可以只重建 Web 服务验证数据库仍可访问：
+如果在受控测试中已经有评论数据，可以只更新已导入的 Web 镜像验证数据库仍可访问：
 
 ```bash
-docker compose --env-file .env.production -p codeseed up -d --build web
+docker compose --env-file .env.production -p codeseed up -d --no-deps --pull never web
 ```
 
 不要使用 `docker compose down -v`。不要删除 `codeseed` 数据卷。数据库卷是独立持久化边界，Web 镜像重建不会删除它。
 
 ## 11. 安全更新方法
 
-修改应用代码或依赖后，只重建并重新创建本项目的 Web 服务：
+修改应用代码或依赖后，重新运行导出 Workflow，下载新的 Artifact 并执行 `docker load`；ECS 只使用本地导入镜像更新 Web 服务：
 
 ```bash
-docker compose --env-file .env.production -p codeseed build web
-docker compose --env-file .env.production -p codeseed up -d --no-deps web
+docker load --input /opt/codeseed-transfer/codeseed-<tag>-<commit>.tar.gz
+docker compose --env-file .env.production -p codeseed up -d --no-deps --pull never web
 ```
 
 MySQL 镜像升级前先完成备份、兼容性评估和人工确认。不要在没有备份的情况下替换数据库卷。生产环境匿名评论仍应保持关闭，除非已经确认 HTTPS、反向代理头、单实例限流和滥用防护策略。
 
 ## 12. 回滚方法
 
-应用回滚应使用已验证的 Git 提交或旧镜像标签：
+应用回滚应使用已经导入并验证过的旧 GHCR 镜像标签：
 
 ```bash
-git fetch --tags
-git checkout <VERIFIED_COMMIT_OR_TAG>
-docker compose --env-file .env.production -p codeseed build web
-docker compose --env-file .env.production -p codeseed up -d --no-deps web
+vi .env.production  # 将 WEB_IMAGE 改为已导入的 ghcr.io/...:sha-<commit> 或旧版本标签
+docker compose --env-file .env.production -p codeseed up -d --no-deps --pull never web
 ```
 
 不要回滚或删除数据库卷来处理 Web 代码问题。数据库 schema 变更需要单独的向后兼容迁移方案；当前 `db/init.sql` 只负责首次建表。
@@ -205,7 +272,7 @@ docker compose --env-file .env.production -p codeseed ps
 docker compose --env-file .env.production -p codeseed logs web
 ```
 
-检查构建阶段的 `NEXT_PUBLIC_SITE_URL` 是否已设置，以及 Node/Next 构建是否成功。
+检查 `WEB_IMAGE` 是否与 `docker image ls` 中已经导入的 GHCR 标签完全一致，并确认 `docker load` 没有报错。
 
 ### `db` 一直不是 healthy
 
@@ -228,7 +295,7 @@ docker compose --env-file .env.production -p codeseed exec web printenv MYSQL_HO
 
 ### 页面可访问但 URL 或 SEO 不正确
 
-`NEXT_PUBLIC_SITE_URL` 在构建阶段生效。修改域名/IP 后执行 Web 镜像重建；不要只重启容器。
+`NEXT_PUBLIC_SITE_URL` 在 GitHub Actions 构建镜像阶段生效。修改域名/IP 后需要更新 GitHub Variable 并重新触发镜像构建；不要只重启 ECS 容器。
 
 ### 端口冲突
 
@@ -236,4 +303,4 @@ docker compose --env-file .env.production -p codeseed exec web printenv MYSQL_HO
 
 ## 14. 当前阶段限制
 
-本仓库的部署配置在当前 Windows 环境完成静态检查，但本机 Docker CLI 不可用，因此尚未执行 Docker 镜像构建、Compose 启动、MySQL 健康检查、容器内服务名解析或重启持久化测试。部署到 Ubuntu 前必须按本文档逐项验证。
+本仓库的部署配置在当前 Windows 环境完成静态检查，但本机 Docker CLI 不可用，因此尚未执行镜像导出 Workflow、Artifact 下载、SCP 上传、ECS `docker load`、Compose 启动、MySQL 健康检查、容器内服务名解析或重启持久化测试。部署到 Ubuntu 前必须按本文档逐项验证。
